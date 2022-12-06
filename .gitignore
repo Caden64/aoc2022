@@ -21,3 +21,5 @@ day00a/.idea/day00a.iml
 day01b/.idea/day01b.iml
 day01b/.idea/modules.xml
 day01b/.idea/vcs.xml
+*.xml
+*.iml
