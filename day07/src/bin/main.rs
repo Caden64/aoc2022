@@ -27,31 +27,83 @@ $ ls
 8033020 d.log
 5626152 d.ext
 7214296 k";
-
-    let mut root: HashMap<&str, RandomState> = HashMap::new();
-    let mut cwd = HashMap::new();
-    let mut stack = vec![];
-
+    let root = Aoc::default().root;
+    let mut cwd = Rc::clone(&root);
     for line in input.lines() {
-        if line.starts_with("$") {
-            if line.contains("cd") {
-                let dir = line.split_whitespace().nth(2).unwrap();
-                if dir == "/" {
-                    cwd = root.clone();
-                    stack = vec![];
+        let words = line.split(" ").collect::<Vec<&str>>();
+        match (words[0], words[1]) {
+            ("$", "ls") => {},
+            ("$", "cd") => {
+                match words[2] {
+                    "/" => cwd = Rc::clone(&root),
+                    ".." => cwd = Rc::clone(&cwd.parent.as_ref().unwrap()),
+                    dir_name => {
+                        let new_dir = cwd.subdir.borrow().get(dir_name).unwrap().clone();
+                        cwd = Rc::clone(&new_dir)
+                    },
                 }
-                else if dir == ".." {
-                    cwd = stack.pop().unwrap();
-                }
-                else {
-                    if !cwd.contains_key(dir) {
-                        cwd.insert(dir, RandomState::new())
-                    }
-                    stack.push(cwd.clone());
-                    cwd = HashMap::new();
-                    cwd.insert(dir, RandomState::new())
-                }
-            }
+            },
+            ("dir", dir_name) => {
+                cwd.subdir.borrow_mut().insert(dir_name.to_string(), Rc::new(Dir {
+                    name:dir_name.to_string(),
+                    size: RefCell::new(0),
+                    parent: Some(Rc::clone(&cwd)),
+                    subdir: RefCell::new(HashMap::new()),
+                }));
+            },
+            (size, _name)=> *cwd.size.borrow_mut() += size.parse::<usize>().unwrap()
         }
     }
+
+    let mut to_visit = vec![Rc::clone(&root)];
+    let mut total = 0;
+    while let Some(dir) = to_visit.pop() {
+        for d in dir.subdir.borrow().values() {
+            to_visit.push(Rc::clone(d));
+        }
+
+        let size  = dir.get_size();
+        if size<=100000 {
+            total += size
+        }
+    }
+    println!("part 1: {}", total);
+
+    let total_size = root.get_size();
+    let free_space  = 70000000-total_size;
+    let size_needed = 30000000-free_space;
+
+    let mut to_visit = vec![Rc::clone(&root)];
+    let mut best = usize::MAX;
+    while let Some(dir) = to_visit.pop() {
+        for d in dir.subdir.borrow().values() {
+            to_visit.push(Rc::clone(d))
+        }
+
+        let size = dir.get_size();
+        if size >= size_needed {
+            best = best.min(size)
+        }
+    }
+
+    println!("part 2: {}", best)
+
+}
+#[derive(Default, Debug)]
+struct Dir {
+    name: String,
+    size: RefCell<usize>,
+    parent: Option<Rc<Dir>>,
+    subdir: RefCell<HashMap<String, Rc<Dir>>>
+}
+
+impl Dir {
+    fn get_size(&self) -> usize {
+        *self.size.borrow() + self.subdir.borrow().values().fold(0, |a, b| a + b.get_size())
+    }
+}
+
+#[derive(Default, Debug)]
+struct Aoc {
+    root: Rc<Dir>
 }
